@@ -20,5 +20,8 @@ where = ['src']
 [tool.hatch.build.targets.wheel]
 packages = ["src/fgm"]
 
+[tool.vercel]
+entrypoint = "src.fgm:main"
+
 [tool.poetry]
 package-mode = false
