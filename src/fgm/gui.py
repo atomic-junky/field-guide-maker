@@ -75,7 +75,7 @@ def init_gui() -> None:
     st.set_page_config(page_title="Field Guide Maker", page_icon=im, layout="centered")
 
     st.title("Field Guide Maker")
-    st.caption("Create your base PSD file for your animation background layout.")
+    st.caption("Generate your base PSD for animation background layouts.")
     st.divider()
 
     st.subheader("Configuration")
