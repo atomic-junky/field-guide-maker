@@ -13,14 +13,8 @@ dependencies = [
     'streamlit>=1.58.0',
 ]
 
-[tool.setuptools.packages.find]
-where = ['src']
-
 [tool.setuptools.package-data]
 "*" = ["*.ttf"]
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/fgm"]
 
 [tool.poetry]
 package-mode = false
