@@ -288,4 +288,6 @@ class FGMFactory:
 
 
 def _load_default_font(size: int) -> ImageFont.FreeTypeFont:
-    return ImageFont.truetype(get_asset_path("arial.ttf"), size=size, encoding="unic")
+    return ImageFont.truetype(
+        get_asset_path("lato.black.ttf"), size=size, encoding="unic"
+    )
