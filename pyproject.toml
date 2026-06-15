@@ -16,11 +16,11 @@ dependencies = [
 [tool.setuptools.packages.find]
 where = ['src']
 
+[tool.setuptools.package-data]
+"*" = ["*.ttf"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/fgm"]
-
-[tool.vercel]
-entrypoint = "src.fgm:main"
 
 [tool.poetry]
 package-mode = false
