@@ -1,0 +1,55 @@
+name: Build and Release Desktop App
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*.*.*'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-release:
+    strategy:
+      matrix:
+        os:
+          - "ubuntu-latest"
+          - "macos-latest"
+          - "windows-latest"
+    
+    name: Build and Release on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install .
+          pip install streamlit-desktop-app
+
+      - name: Build the executable
+        run: streamlit-desktop-app build app.py --name FieldGuideMaker-${{ matrix.os }} --icon src/fgm/assets/favicon.ico --pyinstaller-options --onefile --noconfirm --noconsole --add-data=src:src --hidden-import=psd_tools
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: fgm-${{ matrix.os }}-build
+          path: dist/FieldGuideMaker-${{ matrix.os }}.exe 
+
+      - name: Create Release and Upload Executable
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v3
+        with:
+          files: dist/FieldGuideMaker-${{ matrix.os }}.exe
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
