@@ -4,7 +4,8 @@ from pathlib import Path
 
 from PIL import Image
 import streamlit as st
-from fgm.factory import FGMFactory, FGMConfig
+
+from .factory import FGMFactory, FGMConfig
 
 
 def generate_html_preview(
@@ -152,7 +153,3 @@ def init_gui() -> None:
             file_name=file_name,
             mime="image/vnd.adobe.photoshop",
         )
-
-
-if __name__ == "__main__":
-    init_gui()

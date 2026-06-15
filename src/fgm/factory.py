@@ -185,7 +185,6 @@ class FGMFactory:
         self._psd.append(layer)
 
     def save(self, fp: IO[bytes] | str | bytes | PathLike) -> None:
-        self.log(f"Saving")
         self._psd.save(fp)
 
     def _build(self) -> None:
