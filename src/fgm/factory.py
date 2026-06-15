@@ -53,7 +53,7 @@ class FGMConfig:
                 SafeZone(
                     name="title_safe",
                     text="title",
-                    scale=0.8,
+                    scale=0.9,
                     color=(0, 255, 255, 255),
                     border_width=2,
                 )
@@ -64,7 +64,7 @@ class FGMConfig:
                 SafeZone(
                     name="action_safe",
                     text="action",
-                    scale=0.9,
+                    scale=0.13,
                     color=(0, 255, 255, 255),
                     border_width=2,
                 )

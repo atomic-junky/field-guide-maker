@@ -62,9 +62,9 @@ def generate_html_preview(
                 linear-gradient(to top right, transparent calc(50% - 1px), rgba(0, 255, 0, 255) 50%, transparent calc(50% + 1px));">
             </div>''' if display_cross else ""}
 
-            {f'''<div style="position: absolute; top: 10%; bottom: 10%; left: 10%; right: 10%; border: 2px solid #00ffff; pointer-events: none;"></div>''' if display_title_safe else ""}
+            {f'''<div style="position: absolute; top: 7%; bottom: 7%; left: 7%; right: 7%; border: 2px solid #00ffff; pointer-events: none;"></div>''' if display_action_safe else ""}
 
-            {f'''<div style="position: absolute; top: 15%; bottom: 15%; left: 15%; right: 15%; border: 2px solid #00ffff; pointer-events: none;"></div>''' if display_action_safe else ""}
+            {f'''<div style="position: absolute; top: 10%; bottom: 10%; left: 10%; right: 10%; border: 2px solid #00ffff; pointer-events: none;"></div>''' if display_title_safe else ""}
         </div>
     </div>
     """
@@ -103,8 +103,8 @@ def init_gui() -> None:
         st.write("")
 
         display_cross = st.checkbox("Cross", value=True)
-        display_action_safe = st.checkbox("Action Safe Border", value=True)
         display_title_safe = st.checkbox("Title Safe Border", value=True)
+        display_action_safe = st.checkbox("Action Safe Border", value=True)
         display_overscan = st.checkbox("Overscan Border", value=True)
 
     with colp:
