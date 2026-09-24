@@ -6,7 +6,7 @@
 pip install .
 ```
 
-## Run projecct
+## Run project
 
 ```sh
 streamlit run
