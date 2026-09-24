@@ -64,7 +64,7 @@ class FGMConfig:
                 SafeZone(
                     name="action_safe",
                     text="action",
-                    scale=0.13,
+                    scale=0.93,
                     color=(0, 255, 255, 255),
                     border_width=2,
                 )
