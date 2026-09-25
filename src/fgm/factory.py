@@ -9,7 +9,7 @@ from dataclasses import dataclass
 import math
 from os import PathLike
 from pathlib import Path
-from typing import IO, Callable, Tuple
+from typing import IO
 
 from PIL import Image, ImageDraw, ImageFont
 from psd_tools import PSDImage
@@ -17,112 +17,11 @@ from psd_tools.api.layers import Layer, PixelLayer, Group
 from psd_tools.constants import Compression, Tag
 from psd_tools.psd.tagged_blocks import SheetColorType
 
-RGBA = tuple[int, int, int, int]
+from .models import Settings, RGBA
 
 
 def get_asset_path(filename: str) -> Path:
     return Path(__file__).parent / "assets" / filename
-
-
-@dataclass
-class SafeZone:
-    name: str
-    text: str | None
-    scale: Tuple[float, float] | float
-    color: RGBA
-    border_width: int
-    alignement: str = "o"
-
-
-@dataclass
-class FGMConfig:
-    width: int
-    height: int
-    safe_margin: float
-    absolute_margin: bool = False
-    draw_cross: bool = True
-    action_border: bool = True
-    title_border: bool = True
-    overscan_border: bool = True
-
-    def __post_init__(self) -> None:
-        self._safe_zones: list[SafeZone] = []
-
-        if self.title_border:
-            self._safe_zones.append(
-                SafeZone(
-                    name="title_safe",
-                    text="title",
-                    scale=0.9,
-                    color=(0, 255, 255, 255),
-                    border_width=2,
-                )
-            )
-
-        if self.action_border:
-            self._safe_zones.append(
-                SafeZone(
-                    name="action_safe",
-                    text="action",
-                    scale=0.93,
-                    color=(0, 255, 255, 255),
-                    border_width=2,
-                )
-            )
-
-        self._safe_zones.append(
-            SafeZone(
-                name="frame",
-                text=f"{self.width} x {self.height} ({int(self.width/self.ratio)}:{int(self.height/self.ratio)})",
-                scale=1.0,
-                color=(0, 0, 255, 255),
-                border_width=3,
-            )
-        )
-
-        if self.overscan_border:
-            cw, ch = self.canvas_size
-            overscan_scale: Tuple[float, float] = (cw / self.width, ch / self.height)
-            self._safe_zones.append(
-                SafeZone(
-                    name="overscan",
-                    text=f"{cw} x {ch} OVERSCAN",
-                    scale=overscan_scale,
-                    color=(255, 0, 255, 255),
-                    border_width=2,
-                    alignement="i",
-                )
-            )
-
-    @property
-    def ratio(self) -> int:
-        return math.gcd(self.width, self.height)
-
-    @property
-    def canvas_size(self) -> tuple[int, int]:
-        if self.absolute_margin:
-            margin_px = max(self.width, self.height) * self.safe_margin / 2
-            return int(self.width + 2 * margin_px), int(self.height + 2 * margin_px)
-        else:
-            total_scale = 1.0 + self.safe_margin
-            return int(self.width * total_scale), int(self.height * total_scale)
-
-    @property
-    def inner_size(self) -> tuple[int, int]:
-        return self.width, self.height
-
-    def inner_origin(self) -> tuple[int, int]:
-        cw, ch = self.canvas_size
-        return (cw - self.width) // 2, (ch - self.height) // 2
-
-    def safe_zone_rect(
-        self, scale: Tuple[float, float] | float
-    ) -> tuple[int, int, int, int]:
-        cw, ch = self.canvas_size
-        scale_x, scale_y = (scale, scale) if isinstance(scale, float) else scale
-        sw = int(self.width * scale_x)
-        sh = int(self.height * scale_y)
-        return (cw - sw) // 2, (ch - sh) // 2, sw, sh
 
 
 class ImageFactory:
@@ -175,10 +74,10 @@ class ImageFactory:
         return im
 
 
-class FGMFactory:
-    def __init__(self, config: FGMConfig) -> None:
-        self.config = config
-        self._psd = PSDImage.new(mode="RGBA", size=config.canvas_size, color=1.0)
+class FieldGuideFactory:
+    def __init__(self, settings: Settings) -> None:
+        self.s = settings
+        self._psd = PSDImage.new(mode="RGBA", size=self.s.canvas_size, color=1.0)
         self._build()
 
     def add_layer(self, layer: PixelLayer) -> None:
@@ -204,7 +103,7 @@ class FGMFactory:
         return layer
 
     def _add_background(self) -> None:
-        cw, ch = self.config.canvas_size
+        cw, ch = self.s.canvas_size
         self._psd.append(
             self._pixel_layer(
                 ImageFactory.solid((cw, ch), (255, 255, 255, 255)),
@@ -215,10 +114,9 @@ class FGMFactory:
         )
 
     def _add_frame_group(self) -> None:
-        cfg = self.config
-        cw, ch = cfg.canvas_size
-        inner_left, inner_top = cfg.inner_origin()
-        iw, ih = cfg.inner_size
+        cw, ch = self.s.canvas_size
+        inner_left, inner_top = self.s.inner_origin
+        iw, ih = self.s.inner_size
 
         group: Group = Group.new(self._psd, "99+field guide", open_folder=False)
         group.tagged_blocks.set_data(Tag.SHEET_COLOR_SETTING, SheetColorType.RED)
@@ -236,7 +134,7 @@ class FGMFactory:
             )
         )
 
-        if cfg.draw_cross:
+        if self.s.display_cross:
             layers.append(
                 self._pixel_layer(
                     ImageFactory.diagonals(iw, ih, (0, 0, 255, 255), thickness=1),
@@ -250,12 +148,12 @@ class FGMFactory:
         group.extend(layers)
 
         border_group: Group = Group.new(parent=group, name="borders", open_folder=False)
-        for zone in cfg._safe_zones:
+        for zone in self.s.safe_zones:
             sz_group: Group = Group.new(
                 parent=border_group, name=zone.name, open_folder=False
             )
 
-            zl, zt, zw, zh = cfg.safe_zone_rect(zone.scale)
+            zl, zt, zw, zh = zone.get_rect(self.s.inner_size, self.s.canvas_size)
             bw = zone.border_width
 
             if zone.alignement == "i":

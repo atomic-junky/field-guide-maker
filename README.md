@@ -9,5 +9,5 @@ pip install .
 ## Run project
 
 ```sh
-streamlit run
+python -m streamlit run app.py
 ```

@@ -1,40 +1,27 @@
+import importlib
 import io
+import json
 import math
 from pathlib import Path
 
 from PIL import Image
 import streamlit as st
+from streamlit.proto.FileUploader_pb2 import FileUploader
 
-from .factory import FGMFactory, FGMConfig
+from .factory import FieldGuideFactory
+from .models import Settings
 
 
 def generate_html_preview(
-    width: int,
-    height: int,
-    safe_margin: float,
-    absolute_margin: bool,
-    display_cross: bool,
-    display_action_safe: bool,
-    display_title_safe: bool,
-    display_overscan: bool,
+    settings: Settings
 ):
-    if absolute_margin:
-        margin_px = (max(width, height) * safe_margin) / 2
+    inset_x_pct = (settings.outer_margin[0] / settings.canvas_size[0]) * 50
+    inset_y_pct = (settings.outer_margin[1] / settings.canvas_size[1]) * 50
+    
+    action_margin: int = (1 - settings.action_safe_scale) * 50
+    title_margin: int = (1 - settings.title_safe_scale) * 50
 
-        outer_width = width + (2 * margin_px)
-        outer_height = height + (2 * margin_px)
-
-        outer_aspect_ratio = f"{outer_width} / {outer_height}"
-
-        inset_x_pct = (margin_px / outer_width) * 100
-        inset_y_pct = (margin_px / outer_height) * 100
-    else:
-        total_scale = 1 + safe_margin
-        inset_pct = (safe_margin / (2 * total_scale)) * 100
-
-        outer_aspect_ratio = f"{width} / {height}"
-        inset_x_pct = inset_pct
-        inset_y_pct = inset_pct
+    outer_aspect_ratio = f"{settings.canvas_size[0]} / {settings.canvas_size[1]}"
 
     html_code: str = f"""
     <div style="
@@ -46,7 +33,7 @@ def generate_html_preview(
         border-radius: 4px;
         box-shadow: inset 0 0 0 1px rgba(250, 250, 250, 0.2);
     ">
-        {f'''<div style="position: absolute; top: 0; bottom: 0; left: 0; right: 0; border: 1px solid #ff00ff; pointer-events: none;"></div>''' if display_overscan else ""}
+        {f'''<div style="position: absolute; top: 0; bottom: 0; left: 0; right: 0; border: 1px solid #ff00ff; pointer-events: none;"></div>''' if settings.display_overscan else ""}
 
         <div style="
             position: absolute; 
@@ -60,11 +47,11 @@ def generate_html_preview(
             {f'''<div style="position: absolute; top: 0; bottom: 0; left: 0; right: 0; pointer-events: none; background-image: 
                 linear-gradient(to bottom right, transparent calc(50% - 1px), rgba(0, 255, 0, 255) 50%, transparent calc(50% + 1px)),
                 linear-gradient(to top right, transparent calc(50% - 1px), rgba(0, 255, 0, 255) 50%, transparent calc(50% + 1px));">
-            </div>''' if display_cross else ""}
+            </div>''' if settings.display_cross else ""}
 
-            {f'''<div style="position: absolute; top: 7%; bottom: 7%; left: 7%; right: 7%; border: 2px solid #00ffff; pointer-events: none;"></div>''' if display_action_safe else ""}
+            {f'''<div style="position: absolute; top: {title_margin}%; bottom: {title_margin}%; left: {title_margin}%; right: {title_margin}%; border: 2px solid {settings.title_border_color}; pointer-events: none;"></div>''' if settings.display_title_safe else ""}
 
-            {f'''<div style="position: absolute; top: 10%; bottom: 10%; left: 10%; right: 10%; border: 2px solid #00ffff; pointer-events: none;"></div>''' if display_title_safe else ""}
+            {f'''<div style="position: absolute; top: {action_margin}%; bottom: {action_margin}%; left: {action_margin}%; right: {action_margin}%; border: 2px solid {settings.action_border_color}; pointer-events: none;"></div>''' if settings.display_action_safe else ""}
         </div>
     </div>
     """
@@ -72,73 +59,106 @@ def generate_html_preview(
 
 
 def init_gui() -> None:
+    s = Settings()
+    
     im = Image.open(Path(__file__).parent / "assets" / "fgm_logo.png")
     st.set_page_config(page_title="Field Guide Maker", page_icon=im, layout="centered")
 
-    st.title("Field Guide Maker")
+    with st.container(horizontal=True, vertical_alignment="bottom"):
+        st.title("Field Guide Maker")
+        st.space("stretch")
+        
+        version = importlib.metadata.version('field_guide_maker')
+        st.caption("v" + version, text_alignment="right")
+    st.logo("./src/fgm/assets/fgm_logo.svg")
     st.caption("Generate your base PSD for animation background layouts.")
     st.divider()
 
-    st.subheader("Configuration")
+    with st.container(horizontal=True):
+        st.subheader("Configuration")
+        st.space("stretch")
 
     colc, colp = st.columns(2)
     with colc:
         colw, colh = st.columns(2)
         with colw:
-            width_input = st.number_input("Width", min_value=1, value=1920)
+            s.width = st.number_input("Width", min_value=1, value=s.width)
         with colh:
-            height_input = st.number_input("Height", min_value=1, value=1080)
+            s.height = st.number_input("Height", min_value=1, value=s.height)
 
-        ratio = math.gcd(width_input, height_input)
         st.text(
-            f"Aspect Ratio: {int(width_input/ratio)}:{int(height_input/ratio)} ({width_input/height_input:.2f})"
+            f"Aspect Ratio: {int(s.width/s.ratio)}:{int(s.height/s.ratio)} ({(s.width/s.height):.2f})"
         )
 
-        safe_margin_input: int = st.number_input(
-            "Safe Margin (in %)", min_value=0, value=15
+        s._safe_margin_input = st.number_input(
+            "Safe Margin (in %)", min_value=0, value=s._safe_margin_input
         )
-        safe_margin_value = safe_margin_input / 100.0
-        absolute_margin = st.checkbox("Absolute Margin", value=False)
+        s.absolute_margin = st.checkbox("Absolute Margin", value=False)
 
-        st.write("")
+    st.space("small")
 
-        display_cross = st.checkbox("Cross", value=True)
-        display_title_safe = st.checkbox("Title Safe Border", value=True)
-        display_action_safe = st.checkbox("Action Safe Border", value=True)
-        display_overscan = st.checkbox("Overscan Border", value=True)
+    s.display_cross = st.checkbox("Cross", value=s.display_cross)
+    s.display_title_safe = st.checkbox("Title Safe Border", value=s.display_title_safe)
+    s.display_action_safe = st.checkbox("Action Safe Border", value=s.display_action_safe)
+    s.display_overscan = st.checkbox("Overscan Border", value=s.display_overscan)
+
+    with st.expander("Advanced Settings"):
+        with st.container(horizontal=True):
+            s._action_safe_scale_input = st.number_input(
+                "Action Safe Margins (in %)", min_value=0, value=s._action_safe_scale_input
+            )
+            
+            s._title_safe_scale_input = st.number_input(
+                "Title Safe Margins (in %)", min_value=0, value=s._title_safe_scale_input
+            )
+        
+        st.write("Border Colors")
+        with st.container(horizontal=True):
+            s.border_color = st.color_picker("Border", width="stretch", value=s.border_color)
+            s.overscan_border_color = st.color_picker("Overscan", width="stretch", value=s.overscan_border_color)
+            s.action_border_color = st.color_picker("Action", width="stretch", value=s.action_border_color)
+            s.title_border_color = st.color_picker("Title", width="stretch", value=s.title_border_color)
+            s.cross_color = st.color_picker("Cross", width="stretch", value=s.cross_color)
+        
+        # st.write("Import/Export config")
+        # with st.container(horizontal=True, vertical_alignment="center"):
+        #     st.download_button(
+        #         label="Export",
+        #         data=s.to_json(),
+        #         file_name="fgm_config.json",
+        #         mime="json",
+        #         icon=":material/download:",
+        #     )
+            
+        #     config_file = st.file_uploader(
+        #         "Import",
+        #         type=".json",
+        #         label_visibility="collapsed"
+        #     )
+            
+        #     if config_file is not None:
+        #         try:
+        #             stringio = io.StringIO(config_file.getvalue().decode("utf-8"))
+        #             st.write(stringio)
+        #             raw_data = stringio.read()
+        #             data = json.loads(raw_data)
+        #             s = s.from_json(data)
+        #         except:
+        #             print("Failed to load config file.")
 
     with colp:
         colp.border = True
-        generate_html_preview(
-            width_input,
-            height_input,
-            safe_margin_value,
-            absolute_margin,
-            display_cross,
-            display_action_safe,
-            display_title_safe,
-            display_overscan,
-        )
+        generate_html_preview(s)
 
     def _export_callback() -> io.BytesIO:
-        config = FGMConfig(
-            width=width_input,
-            height=height_input,
-            safe_margin=safe_margin_value,
-            absolute_margin=absolute_margin,
-            draw_cross=display_cross,
-            action_border=display_action_safe,
-            title_border=display_title_safe,
-            overscan_border=display_overscan,
-        )
-        factory = FGMFactory(config)
+        factory = FieldGuideFactory(s)
 
         data = io.BytesIO()
         factory.save(data)
         data.seek(0)
         return data
 
-    st.write("")
+    st.space("small")
 
     with st.container(horizontal=True, vertical_alignment="bottom"):
         file_name: str = st.text_input(
